@@ -4,7 +4,6 @@ from src.config import Config
 
 cfg = Config()
 
-
 class MIFExporter:
     def __init__(self, bit_width=8, frac_bits=7):
         self.bit_width = bit_width
@@ -21,49 +20,31 @@ class MIFExporter:
 
     def generate_mif(self, data, filename):
         flat_data = data.flatten()
-        depth = len(flat_data)
-
         mif_content = [
-            f"DEPTH = {depth};",
+            f"DEPTH = {len(flat_data)};",
             f"WIDTH = {self.bit_width};",
             "ADDRESS_RADIX = HEX;",
             "DATA_RADIX = HEX;",
-            "CONTENT",
-            "BEGIN",
+            "CONTENT BEGIN",
             ""
         ]
-
         for addr, val in enumerate(flat_data):
-            hex_val = self.to_fixed_point(val)
-            mif_content.append(f"{addr:X} : {hex_val};")
-
+            mif_content.append(f"{addr:X} : {self.to_fixed_point(val)};")
         mif_content.append("END;")
-
         output_path = cfg.PROJECT_ROOT / "export" / f"{filename}.mif"
         output_path.parent.mkdir(exist_ok=True)
-
         with open(output_path, "w") as f:
             f.write("\n".join(mif_content))
-        print(f" -> Exportado: {filename}.mif ({depth} words)")
-
+        print(f" -> Exportado: {filename}.mif ({len(flat_data)} words)")
 
 def export_model_to_mif():
     model_path = cfg.PROJECT_ROOT / "models" / "tiny_cnn_binaria_final.h5"
+    if not model_path.exists(): return
     model = tf.keras.models.load_model(str(model_path))
-    exporter = MIFExporter(bit_width=8, frac_bits=7)
-
+    exporter = MIFExporter()
     print("\n[MIF] Iniciando exportação dos pesos quantizados...")
-
     for layer in model.layers:
         weights = layer.get_weights()
-        if not weights:
-            continue
-
-        layer_name = layer.name
-        # weights[0] são os pesos (filtros/kernel), weights[1] são os biases
-        exporter.generate_mif(weights[0], f"{layer_name}_weights")
-        exporter.generate_mif(weights[1], f"{layer_name}_biases")
-
-
-if __name__ == "__main__":
-    export_model_to_mif()
+        if not weights: continue
+        exporter.generate_mif(weights[0], f"{layer.name}_weights")
+        exporter.generate_mif(weights[1], f"{layer.name}_biases")
