@@ -16,7 +16,8 @@ class Config:
         self.RAW_DIR = self.DATA_DIR / "raw"
         self.INTERIM_DIR = self.DATA_DIR / "interim"
         self.PROCESSED_DIR = self.DATA_DIR / "processed"
-
+        self.LFW_TAR = self.RAW_DIR / "lfw.tgz"
+        self.LFW_RAW_DIR = self.RAW_DIR / "lfw_extracted"
         self.RAW_AUTORIZADO_DIR = self.RAW_DIR / "1_autorizado"
         self.INTERIM_AUTORIZADO_DIR = self.INTERIM_DIR / "1_autorizado"
         self.NEGADOS_INTERIM_DIR = self.INTERIM_DIR / "0_desconhecido"

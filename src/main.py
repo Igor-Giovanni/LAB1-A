@@ -1,5 +1,7 @@
 import os
 import random
+import kagglehub
+import shutil
 from src.config import Config
 from src.data_utils import DataExtractor
 from src.preprocessor import ImageProcessor, DataPreprocessor
@@ -14,7 +16,10 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['OPENCV_LOG_LEVEL'] = 'OFF'
 
 
+
+
 def main():
+    # Inicialização dos componentes seguindo os princípios SOLID
     cfg = Config()
     extractor = DataExtractor()
     img_processor = ImageProcessor(cfg.IMG_SIZE)
@@ -23,29 +28,59 @@ def main():
     evaluator = ModelEvaluator(cfg)
     random.seed(42)
 
-    print("\n" + "=" * 50 + "\n         INICIANDO PIPELINE       \n" + "=" * 50)
+    print("\n" + "=" * 50)
+    print("         INICIANDO PIPELINE BIOMÉTRICA (ARTEFATO 1)      ")
+    print("=" * 50)
 
-    tar_path = cfg.RAW_DIR / "Selfie-dataset.tar.gz"
-    if tar_path.exists():
-        extractor.extract_tar(tar_path, cfg.RAW_DIR / "selfies", limit=7000)
+    # 1. GESTÃO DE DATASETS EXTERNOS (Classe 0)
+    print("\n[PASSO 1] Gerenciando fontes de Desconhecidos...")
 
+    # Extração das Selfies locais (.tar.gz)
+    tar_selfies = cfg.RAW_DIR / "Selfie-dataset.tar.gz"
+    if tar_selfies.exists():
+        extractor.extract_tar(tar_selfies, cfg.RAW_DIR / "selfies", limit=3000)
+
+    lfw_download_path = kagglehub.dataset_download("atulanandjha/lfwpeople")
+    lfw_raw_folder = cfg.RAW_DIR / "lfw_extracted"
+
+    if not lfw_raw_folder.exists():
+        print("  -> Extraindo LFW para a estrutura do projeto...")
+        shutil.copytree(lfw_download_path, lfw_raw_folder)
+
+    # 2. PRÉ-PROCESSAMENTO (Raw -> Interim)
+    # Limpa execuções anteriores para evitar contaminação
     data_preprocessor.clear_interim()
-    data_preprocessor.process_authorized(max_fotos=400)
-    data_preprocessor.process_unknowns(ratio=2.0, num_fundos=300)
 
+    # Processa fotos/vídeos da equipe (Classe 1)
+    data_preprocessor.process_authorized(max_fotos=800)
+
+    # Processa minerando faces do LFW e Selfies (Classe 0)
+    # Ratio 3.0 para garantir que a rede aprenda a negar com segurança
+    data_preprocessor.process_unknowns(ratio=5.0, num_fundos=500)
+
+    # 3. ORGANIZAÇÃO DO DATASET (Interim -> Processed)
+    print("\n[PASSO 3] Organizando Dataset (Split Treino/Validação/Teste)...")
     ds_manager.clean_processed()
+    # Distribui arquivos respeitando a proporção 80/10/10
     ds_manager.split_data(list(cfg.NEGADOS_INTERIM_DIR.glob("*.jpg")), "0_desconhecido")
     ds_manager.split_data(list(cfg.INTERIM_AUTORIZADO_DIR.rglob("*.jpg")), "1_autorizado")
 
+    # 4. TREINAMENTO E TUNING
+    print("\n[PASSO 4] Iniciando Treinamento com Keras Tuner...")
     engine = ModelEngine(cfg, build_tiny_cnn)
     history, model = engine.train()
 
+    # 5. AVALIAÇÃO E EXPORTAÇÃO
+    print("\n[PASSO 5] Gerando relatórios e arquivos para FPGA...")
     evaluator.plot_training_history(history)
     evaluator.evaluate_on_test_set()
 
+    # Exportação para arquivos .mif quantizados em Q1.7
     export_model_to_mif()
 
-    print("\n" + "=" * 50 + "\n      PIPELINE CONCLUÍDA COM SUCESSO      \n" + "=" * 50)
+    print("\n" + "=" * 50)
+    print("      PIPELINE CONCLUÍDA COM SUCESSO (ARTEFATO 1)      ")
+    print("=" * 50)
 
 
 if __name__ == "__main__":

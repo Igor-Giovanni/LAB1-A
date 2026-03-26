@@ -2,19 +2,23 @@ import mlflow
 import mlflow.keras
 import keras_tuner as kt
 import tensorflow as tf
-from sklearn.utils import class_weight
 import numpy as np
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-
 class ModelEngine:
+    """
+    Motor de treino otimizado para a Tiny-CNN.
+    Implementa pesos manuais para reduzir Falsos Positivos e busca exaustiva de hiperparâmetros.
+    """
     def __init__(self, config, model_builder):
         self.cfg = config
         self.model_builder = model_builder
+        # Configuração do rastreio de experiências
         mlflow.set_tracking_uri("sqlite:///mlruns.db")
-        mlflow.set_experiment("Detector_Alunos")
+        mlflow.set_experiment("Fechadura_Biometrica_Otimizada")
 
     def get_generators(self):
+        """Prepara os geradores de dados com normalização 1/255."""
         gen = ImageDataGenerator(rescale=1. / 255)
 
         train = gen.flow_from_directory(
@@ -22,7 +26,8 @@ class ModelEngine:
             target_size=(32, 32),
             color_mode="grayscale",
             class_mode="binary",
-            batch_size=32
+            batch_size=32,
+            shuffle=True
         )
 
         val = gen.flow_from_directory(
@@ -38,47 +43,57 @@ class ModelEngine:
     def train(self):
         train_gen, val_gen = self.get_generators()
 
-        # Cálculo de pesos
-        weights = class_weight.compute_class_weight(
-            'balanced',
-            classes=np.unique(train_gen.classes),
-            y=train_gen.classes
-        )
-        cw = dict(enumerate(weights))
+        # OTIMIZAÇÃO: Pesos Manuais na Loss (Proporção sugerida para segurança)
+        # Classe 0 (Desconhecido): Peso 1.0
+        # Classe 1 (Autorizado): Peso 4.0 -> Dá 4x mais importância ao acerto da equipa
+        cw = {0: 1.0, 1: 4.0}
+        print(f"\n[ENGINE] Aplicando pesos manuais para priorizar Autorizados: {cw}")
 
+        # OTIMIZAÇÃO: Busca mais profunda (max_epochs de 15 para 20)
         tuner = kt.Hyperband(
             self.model_builder,
             objective='val_accuracy',
-            max_epochs=15,
+            max_epochs=20,
             factor=3,
             directory='tuner_logs',
-            project_name='tiny_cnn_solid'
+            project_name='tiny_cnn_fine_tuning'
         )
 
-        with mlflow.start_run(run_name="Final_Training_Run"):
-            # 1. Busca de Hiperparâmetros
-            tuner.search(train_gen, validation_data=val_gen,
-                         callbacks=[tf.keras.callbacks.EarlyStopping(patience=3)])
+        with mlflow.start_run(run_name="Optimized_Training_V4"):
+            # OTIMIZAÇÃO: Maior paciência na fase de busca (patience=10)
+            stop_search = tf.keras.callbacks.EarlyStopping(
+                monitor='val_loss',
+                patience=10
+            )
 
-            # 2. Constrói o melhor modelo encontrado
+            print("\n[PASSO 4.1] Iniciando busca de hiperparâmetros (Dropout, LR, Units)...")
+            tuner.search(train_gen, validation_data=val_gen, callbacks=[stop_search])
+
+            # Recupera o melhor modelo e hiperparâmetros
             best_hps = tuner.get_best_hyperparameters()[0]
             model = tuner.hypermodel.build(best_hps)
 
-            # 3. Configura o Autolog
+            # Registo automático no MLflow
             mlflow.keras.autolog(log_models=True)
 
-            # 4. TREINAMENTO
-            print("\nIniciando o ajuste fino do modelo final...")
+            # OTIMIZAÇÃO: Treino final com paciência estendida (patience=15) e mais épocas
+            # Isso permite que a rede pequena saia de plateaus de perda.
+            print("\n[PASSO 4.2] Iniciando ajuste fino do modelo final...")
             history = model.fit(
                 train_gen,
                 validation_data=val_gen,
-                epochs=20,
+                epochs=50,
                 class_weight=cw,
-                callbacks=[tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True)]
+                callbacks=[tf.keras.callbacks.EarlyStopping(
+                    monitor='val_loss',
+                    patience=15,
+                    restore_best_weights=True
+                )]
             )
 
-            # 5. Salvamento
+            # Salvamento do modelo final para exportação
             model_path = self.cfg.PROJECT_ROOT / "models" / "tiny_cnn_binaria_final.h5"
             model.save(str(model_path))
+            print(f" -> Modelo final guardado em: {model_path}")
 
         return history, model
