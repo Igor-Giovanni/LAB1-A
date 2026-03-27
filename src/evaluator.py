@@ -20,8 +20,8 @@ class ModelEvaluator:
         loss = stats.get('loss')
         val_loss = stats.get('val_loss')
 
-        precision = stats.get('precision')
-        val_precision = stats.get('val_precision')
+        recall = stats.get('recall')
+        val_recall = stats.get('val_recall')
 
         if loss is None:
             print("Erro: Chaves não encontradas no histórico.")
@@ -31,12 +31,14 @@ class ModelEvaluator:
 
         plt.figure(figsize=(15, 5))
 
+        # 1. Gráfico de Perda (Loss)
         plt.subplot(1, 3, 1)
         plt.plot(epochs_range, loss, label='Treino')
         plt.plot(epochs_range, val_loss, label='Validação')
         plt.title('Loss')
         plt.legend()
 
+        # 2. Gráfico de Acurácia
         if acc is not None:
             plt.subplot(1, 3, 2)
             plt.plot(epochs_range, acc, label='Treino')
@@ -44,11 +46,12 @@ class ModelEvaluator:
             plt.title('Acurácia')
             plt.legend()
 
-        if precision is not None:
+        # 3. Gráfico de Recall (Métrica Principal para Detecção de Autorizados)
+        if recall is not None:
             plt.subplot(1, 3, 3)
-            plt.plot(epochs_range, precision, label='Treino')
-            plt.plot(epochs_range, val_precision, label='Validação')
-            plt.title('Precisão (Foco: Segurança)')
+            plt.plot(epochs_range, recall, label='Treino')
+            plt.plot(epochs_range, val_recall, label='Validação')
+            plt.title('Recall (Deteção de Autorizados)')
             plt.legend()
 
         plt.tight_layout()

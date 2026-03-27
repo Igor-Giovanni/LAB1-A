@@ -4,11 +4,9 @@ import random
 import shutil
 from pathlib import Path
 
-
 class ImageProcessor:
     def __init__(self, img_size=32):
         self.img_size = img_size
-        # Carrega o classificador oficial para detecção facial [cite: 19]
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
     def detect_and_crop(self, frame):
@@ -16,19 +14,13 @@ class ImageProcessor:
         if frame is None:
             return None
 
-        # Conversão para escala de cinza conforme requisito da FPGA [cite: 20]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # OTIMIZAÇÃO: CLAHE (Normalização de iluminação adaptativa)
-        # Fundamental para que a rede reconheça faces em diferentes condições de luz [cite: 19]
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         gray = clahe.apply(gray)
 
-        # Detecção facial sincronizada com os parâmetros de treino (1.2, 5) [cite: 7, 8]
         faces = self.face_cascade.detectMultiScale(gray, 1.2, 5, minSize=(60, 60))
 
         for (x, y, w, h) in faces:
-            # Enquadramento com 15% de padding para capturar bordas do rosto [cite: 7, 19]
             pad = int(w * 0.15)
             y1, y2 = max(0, y - pad), min(gray.shape[0], y + h + pad)
             x1, x2 = max(0, x - pad), min(gray.shape[1], x + w + pad)
@@ -41,21 +33,17 @@ class ImageProcessor:
         """Augmentation avançada para melhorar a acurácia em ângulos variados."""
         img_aug = image.copy()
 
-        # 1. Rotação leve (Essencial para inclinação da cabeça na webcam)
         angle = random.randint(-15, 15)
         m_rot = cv2.getRotationMatrix2D((self.img_size / 2, self.img_size / 2), angle, 1)
         img_aug = cv2.warpAffine(img_aug, m_rot, (self.img_size, self.img_size))
 
-        # 2. Espelhamento horizontal (50% de chance)
         if random.random() > 0.5:
             img_aug = cv2.flip(img_aug, 1)
 
-        # 3. Variação de Zoom e Escala
         zoom = random.uniform(0.9, 1.1)
         new_size = int(self.img_size * zoom)
         img_aug = cv2.resize(img_aug, (new_size, new_size))
 
-        # Crop ou Padding para manter o tamanho 32x32 [cite: 20]
         if zoom > 1:
             start = (new_size - self.img_size) // 2
             img_aug = img_aug[start:start + self.img_size, start:start + self.img_size]
@@ -64,17 +52,15 @@ class ImageProcessor:
             img_aug = cv2.copyMakeBorder(img_aug, pad, self.img_size - new_size - pad, pad,
                                          self.img_size - new_size - pad, cv2.BORDER_CONSTANT, value=0)
 
-        # 4. Ajuste de Brilho/Contraste (Simula variações de ambiente)
         alpha = random.uniform(0.8, 1.2)
         beta = random.randint(-20, 20)
         return cv2.convertScaleAbs(img_aug, alpha=alpha, beta=beta)
 
     def generate_synthetic_background(self):
-        """Gera fundos para a Classe 0 para evitar falsos positivos com paredes[cite: 8]."""
+        """Gera fundos para a Classe 0 para evitar falsos positivos com paredes."""
         cor_base = random.randint(40, 230)
         imagem = np.full((self.img_size, self.img_size), cor_base, dtype=np.float32)
 
-        # Gradientes para simular paredes e iluminação linear
         tipo_grad = random.choice(['horizontal', 'vertical', 'nenhum'])
         if tipo_grad != 'nenhum':
             luz = random.uniform(-40, 40)
@@ -94,20 +80,27 @@ class DataPreprocessor:
         self.extractor = extractor
 
     def clear_interim(self):
-        """Prepara as pastas temporárias limpando execuções anteriores[cite: 13]."""
+        """Prepara as pastas temporárias limpando execuções anteriores."""
         if self.cfg.INTERIM_DIR.exists():
             shutil.rmtree(self.cfg.INTERIM_DIR)
         for d in [self.cfg.INTERIM_AUTORIZADO_DIR, self.cfg.NEGADOS_INTERIM_DIR]:
             d.mkdir(parents=True, exist_ok=True)
 
     def process_authorized(self, max_fotos=400):
-        """Processa vídeos e fotos da equipe completando a meta com augmentation[cite: 7, 19]."""
-        print("\n[PREPROCESS] Processando Equipe (Classe 1)...")
+        """Processa vídeos e fotos da equipa completando a meta com augmentation."""
+        print("\n[PREPROCESS] Processando Equipa (Classe 1)...")
+
         for item in self.cfg.RAW_AUTORIZADO_DIR.iterdir():
             nome_limpo = self.extractor.sanitize_name(item.name)
             if nome_limpo != item.name:
-                item.rename(item.with_name(nome_limpo))
+                novo_caminho = item.with_name(nome_limpo)
 
+                if not novo_caminho.exists():
+                    item.rename(novo_caminho)
+                else:
+                    print(f" -> Aviso: Ignorando renomeação. O caminho {novo_caminho.name} já existe.")
+
+        for item in self.cfg.RAW_AUTORIZADO_DIR.iterdir():
             nome_pessoa = item.stem
             dest = self.cfg.INTERIM_AUTORIZADO_DIR / nome_pessoa
             dest.mkdir(parents=True, exist_ok=True)
@@ -125,26 +118,29 @@ class DataPreprocessor:
                 fotos = [p for p in item.iterdir() if p.suffix.lower() in ['.jpg', '.png', '.jpeg']]
                 for f_p in fotos:
                     if len(rostos) >= max_fotos: break
-                    f = self.processor.detect_and_crop(cv2.imread(str(f_p)))
-                    if f is not None: rostos.append(f)
+                    try:
+                        img_array = np.fromfile(str(f_p), np.uint8)
+                        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
-            # Salva fotos base
+                        f = self.processor.detect_and_crop(img)
+                        if f is not None: rostos.append(f)
+                    except Exception:
+                        continue
+
             for i, r in enumerate(rostos[:max_fotos]):
                 cv2.imwrite(str(dest / f"{i:04d}.jpg"), r)
 
-            # Aplica Augmentation para atingir a meta de fotos [cite: 7]
             if 0 < len(rostos) < max_fotos:
                 for i in range(max_fotos - len(rostos)):
                     cv2.imwrite(str(dest / f"aug_{i:04d}.jpg"),
                                 self.processor.apply_augmentation(random.choice(rostos)))
 
     def process_unknowns(self, ratio=3.0, num_fundos=300):
-        """Processa Selfies + LFW e aplica Augmentation para robustez da Classe 0[cite: 8, 19]."""
+        """Processa Selfies + LFW e aplica Augmentation para robustez da Classe 0."""
         print("\n[PREPROCESS] Processando Desconhecidos (Classe 0)...")
         total_auth = len(list(self.cfg.INTERIM_AUTORIZADO_DIR.rglob("*.jpg")))
         meta = int(total_auth * ratio) - num_fundos
 
-        # Suporte ao LFW e Selfies minerados recursivamente [cite: 19]
         image_paths = []
         for d in [self.cfg.RAW_DIR / "selfies", self.cfg.RAW_DIR / "lfw_extracted"]:
             if d.exists():
@@ -156,16 +152,15 @@ class DataPreprocessor:
         for p in image_paths:
             if count >= meta: break
             try:
-                # Carregamento via numpy para evitar erro com caracteres especiais no LFW [cite: 19]
-                img = cv2.imdecode(np.fromfile(str(p), np.uint8), cv2.IMREAD_COLOR)
+                img_array = np.fromfile(str(p), np.uint8)
+                img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+
                 f = self.processor.detect_and_crop(img)
 
                 if f is not None:
-                    # Salva face original do estranho
                     cv2.imwrite(str(self.cfg.NEGADOS_INTERIM_DIR / f"unknown_{count:05d}.jpg"), f)
                     count += 1
 
-                    # OTIMIZAÇÃO: Augmentation para a Classe 0 (Duplica a diversidade negativa)
                     if count < meta:
                         f_aug = self.processor.apply_augmentation(f)
                         cv2.imwrite(str(self.cfg.NEGADOS_INTERIM_DIR / f"unknown_aug_{count:05d}.jpg"), f_aug)
@@ -173,7 +168,6 @@ class DataPreprocessor:
             except (cv2.error, OSError):
                 continue
 
-        # Geração de fundos sintéticos para reduzir falsos positivos com objetos estáticos [cite: 8]
         for i in range(num_fundos):
             cv2.imwrite(str(self.cfg.NEGADOS_INTERIM_DIR / f"fundo_{i:04d}.jpg"),
                         self.processor.generate_synthetic_background())
