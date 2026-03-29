@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers, regularizers
+from keras import layers, regularizers
 
 def build_tiny_cnn(hp):
     model = keras.Sequential()

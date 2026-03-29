@@ -87,8 +87,8 @@ class DataPreprocessor:
             d.mkdir(parents=True, exist_ok=True)
 
     def process_authorized(self, max_fotos=400):
-        """Processa vídeos e fotos da equipa completando a meta com augmentation."""
-        print("\n[PREPROCESS] Processando Equipa (Classe 1)...")
+        """Processa vídeos e fotos da equipe completando a meta com augmentation."""
+        print("\n[PREPROCESS] Processando Equipe (Classe 1)...")
 
         for item in self.cfg.RAW_AUTORIZADO_DIR.iterdir():
             nome_limpo = self.extractor.sanitize_name(item.name)
@@ -135,7 +135,7 @@ class DataPreprocessor:
                     cv2.imwrite(str(dest / f"aug_{i:04d}.jpg"),
                                 self.processor.apply_augmentation(random.choice(rostos)))
 
-    def process_unknowns(self, ratio=3.0, num_fundos=300):
+    ''' def process_unknowns(self, ratio=3.0, num_fundos=300):
         """Processa Selfies + LFW e aplica Augmentation para robustez da Classe 0."""
         print("\n[PREPROCESS] Processando Desconhecidos (Classe 0)...")
         total_auth = len(list(self.cfg.INTERIM_AUTORIZADO_DIR.rglob("*.jpg")))
@@ -168,6 +168,65 @@ class DataPreprocessor:
             except (cv2.error, OSError):
                 continue
 
+        for i in range(num_fundos):
+            cv2.imwrite(str(self.cfg.NEGADOS_INTERIM_DIR / f"fundo_{i:04d}.jpg"),
+                        self.processor.generate_synthetic_background())'''
+     
+                       
+    def process_unknowns(self, ratio=3.0, num_fundos=50):
+        """Processa Selfies + LFW e aplica Augmentation para robustez da Classe 0."""
+        print("\n[PREPROCESS] Processando Desconhecidos (Classe 0)...")
+        
+        # Conta quantas fotos da equipe existem
+        total_auth = len(list(self.cfg.INTERIM_AUTORIZADO_DIR.rglob("*.jpg")))
+        print(f" -> [DIAGNÓSTICO] Total de fotos da equipe extraídas: {total_auth}")
+        
+        # Calcula a meta
+        meta = int(total_auth * ratio) - num_fundos
+        
+        # --- TRAVA DE SEGURANÇA (NOVIDADE) ---
+        # Se a meta der negativo ou zero (ex: falha ao ler os vídeos), 
+        # nós forçamos o sistema a pegar no mínimo 300 fotos do LFW!
+        if meta <= 0:
+            meta = 300
+            print(f" -> [AVISO] Meta original era inválida. Forçando extração de {meta} rostos LFW.")
+        else:
+            print(f" -> [DIAGNÓSTICO] Meta de rostos desconhecidos a extrair: {meta}")
+
+        # Mapeia as imagens do LFW e Selfies
+        image_paths = []
+        for d in [self.cfg.RAW_DIR / "selfies", self.cfg.RAW_DIR / "lfw_extracted"]:
+            if d.exists():
+                image_paths.extend(
+                    [p for p in d.rglob('*') if p.is_file() and p.suffix.lower() in ['.jpg', '.jpeg', '.png']])
+
+        print(f" -> [DIAGNÓSTICO] Imagens brutas encontradas no LFW/Selfies: {len(image_paths)}")
+
+        random.shuffle(image_paths)
+        count = 0
+        for p in image_paths:
+            if count >= meta: break
+            try:
+                img_array = np.fromfile(str(p), np.uint8)
+                img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+
+                f = self.processor.detect_and_crop(img)
+
+                if f is not None:
+                    cv2.imwrite(str(self.cfg.NEGADOS_INTERIM_DIR / f"unknown_{count:05d}.jpg"), f)
+                    count += 1
+
+                    if count < meta:
+                        f_aug = self.processor.apply_augmentation(f)
+                        cv2.imwrite(str(self.cfg.NEGADOS_INTERIM_DIR / f"unknown_aug_{count:05d}.jpg"), f_aug)
+                        count += 1
+            except (cv2.error, OSError):
+                continue
+
+        print(f" -> Sucesso: {count} rostos desconhecidos extraídos.")
+
+        # Gera os fundos
+        print(f" -> Gerando {num_fundos} fundos sintéticos...")
         for i in range(num_fundos):
             cv2.imwrite(str(self.cfg.NEGADOS_INTERIM_DIR / f"fundo_{i:04d}.jpg"),
                         self.processor.generate_synthetic_background())

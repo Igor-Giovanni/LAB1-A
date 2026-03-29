@@ -2,14 +2,14 @@ import os
 import random
 import kagglehub
 import shutil
-from src.config import Config
-from src.data_utils import DataExtractor
-from src.preprocessor import ImageProcessor, DataPreprocessor
-from src.dataset_manager import DatasetManager
-from src.engine import ModelEngine
-from src.evaluator import ModelEvaluator
-from src.model import build_tiny_cnn
-from src.export_mif import export_model_to_mif
+from config import Config
+from data_utils import DataExtractor
+from preprocessor import ImageProcessor, DataPreprocessor
+from dataset_manager import DatasetManager
+from engine import ModelEngine
+from evaluator import ModelEvaluator
+from model import build_tiny_cnn
+from export_mif import export_model_to_mif
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -45,6 +45,11 @@ def main():
     if not lfw_raw_folder.exists():
         print("  -> Extraindo LFW para a estrutura do projeto...")
         shutil.copytree(lfw_download_path, lfw_raw_folder)
+        
+    arquivo_tgz_lfw = lfw_raw_folder / "lfw-funneled.tgz"
+    if arquivo_tgz_lfw.exists():
+        print("  -> Extraindo imagens do LFW. Isso pode demorar um pouco...")
+        extractor.extract_tar(arquivo_tgz_lfw, lfw_raw_folder, limit=15000)
 
     # 2. PRÉ-PROCESSAMENTO (Raw -> Interim)
     data_preprocessor.clear_interim()
@@ -53,7 +58,7 @@ def main():
     data_preprocessor.process_authorized(max_fotos=800)
 
     # Processa minerando faces do LFW e Selfies (Classe 0)
-    data_preprocessor.process_unknowns(ratio=3.0, num_fundos=500)
+    data_preprocessor.process_unknowns(ratio=3.0, num_fundos=50)
 
     # 3. ORGANIZAÇÃO DO DATASET (Interim -> Processed)
     print("\n[PASSO 3] Organizando Dataset (Split Treino/Validação/Teste)...")

@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from src.config import Config
+from config import Config
 
 cfg = Config()
 
