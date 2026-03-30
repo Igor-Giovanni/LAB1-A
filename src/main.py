@@ -78,7 +78,7 @@ def main():
     ds_manager.split_data(list(cfg.NEGADOS_INTERIM_DIR.glob("*.jpg")), "0_desconhecido")
     ds_manager.split_data(list(cfg.INTERIM_AUTORIZADO_DIR.rglob("*.jpg")), "1_autorizado")
 
-    # 4. TREINAMENTO E TUNING
+    # 4. TREINAMENTO E TUNING 
     print("\n[PASSO 4] Iniciando Treinamento com Keras Tuner...")
     engine = ModelEngine(cfg, build_tiny_cnn)
     history, model = engine.train()
