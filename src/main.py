@@ -34,10 +34,22 @@ def main():
     # 1. GESTÃO DE DATASETS EXTERNOS (Classe 0)
     print("\n[PASSO 1] Gerenciando fontes de Desconhecidos...")
 
-    # Extração das Selfies locais (.tar.gz)
-    tar_selfies = cfg.RAW_DIR / "Selfie-dataset.tar.gz"
-    if tar_selfies.exists():
-        extractor.extract_tar(tar_selfies, cfg.RAW_DIR / "selfies", limit=3000)
+    # --- NOVA EXTRAÇÃO DAS SELFIES ---
+    pasta_selfies = cfg.RAW_DIR / "selfies"
+    # Procura na pasta raw por qualquer arquivo zip ou tar que contenha "selfie" no nome
+    arquivo_selfies = next(cfg.RAW_DIR.glob("*[Ss]elfie*.*"), None)
+
+    if arquivo_selfies:
+        # Só extrai se a pasta estiver vazia para não perder tempo rodando isso toda vez
+        if not pasta_selfies.exists() or len(list(pasta_selfies.glob("*.*"))) == 0:
+            print(f"  -> Arquivo de Selfies encontrado: {arquivo_selfies.name}")
+            print("  -> Extraindo Selfies. Isso pode demorar um pouco...")
+            qtd_selfies = extractor.extract_tar(arquivo_selfies, pasta_selfies, limit=3000)
+            print(f"  -> Sucesso: {qtd_selfies} selfies extraídas para a pasta raw/selfies.")
+        else:
+            print("  -> Selfies já estavam extraídas anteriormente. Pulando descompactação.")
+    else:
+        print("  -> [AVISO] Nenhum arquivo compactado de Selfies encontrado na pasta data/raw.")
 
     lfw_download_path = kagglehub.dataset_download("atulanandjha/lfwpeople")
     lfw_raw_folder = cfg.RAW_DIR / "lfw_extracted"
@@ -58,7 +70,7 @@ def main():
     data_preprocessor.process_authorized(max_fotos=800)
 
     # Processa minerando faces do LFW e Selfies (Classe 0)
-    data_preprocessor.process_unknowns(ratio=3.0, num_fundos=50)
+    data_preprocessor.process_unknowns(ratio=3.0, num_fundos=500)
 
     # 3. ORGANIZAÇÃO DO DATASET (Interim -> Processed)
     print("\n[PASSO 3] Organizando Dataset (Split Treino/Validação/Teste)...")
