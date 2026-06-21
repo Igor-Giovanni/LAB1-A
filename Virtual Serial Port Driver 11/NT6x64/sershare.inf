@@ -1,0 +1,91 @@
+;/*++
+;
+;Copyright (c) 2022 Electronic Team, Inc. All Rights Reserved
+;
+;Module Name:
+;
+;    SERSHARE.INF
+;
+;Abstract:
+;
+;    INF file for installing SharedPorts class with Virtual Serial Port device driver.
+;
+;--*/
+[Version]
+Signature="$WINDOWS NT$"
+Class=SharedPorts
+ClassGuid={ff0e27d1-a1d9-4643-8a55-9dd82169bafb}
+Provider=%COMPANYNAME%
+DriverVer=01/20/2022,10.0.191.0
+CatalogFile=sershare.cat
+
+[DestinationDirs]
+DefaultDestDir = 12
+SerShare_Device.NT.Copy = 12
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+sershare.sys = 1,,
+
+; ================= Class section =====================
+
+[ClassInstall32]
+Addreg=SerShareClassReg     
+
+[SerShareClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-23
+HKR,,SilentInstall,,1
+HKR,,NoInstallClass,,1
+
+;*********************************************
+; Shared Serial Port Device  Install Section
+;*********************************************
+
+[Manufacturer]
+%COMPANYNAME%=SerialShare, NTx86, NTia64, NTamd64, NTarm64
+
+[SerialShare]
+%SerShareDevice.DeviceDesc%=SerShare_Device, SERSHARE
+
+[SerialShare.NTx86]
+%SerShareDevice.DeviceDesc%=SerShare_Device, SERSHARE
+
+[SerialShare.NTamd64]
+%SerShareDevice.DeviceDesc%=SerShare_Device, SERSHARE
+
+[SerialShare.NTia64]
+%SerShareDevice.DeviceDesc%=SerShare_Device, SERSHARE
+
+[SerialShare.NTarm64]
+%SerShareDevice.DeviceDesc%=SerShare_Device, SERSHARE
+
+[SerShare_Device.NT]
+CopyFiles=SerShare_Device.NT.Copy
+
+[SerShare_Device.NT.Copy]
+sershare.sys
+
+;-------------- Service installation
+
+[SerShare_Device.NT.Services]
+AddService = sershare, %SPSVCINST_ASSOCSERVICE%, sershare_Service_Inst
+
+; -------------- SerShare Driver install sections
+[sershare_Service_Inst]
+DisplayName    = %sershare.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START 
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\sershare.sys
+LoadOrderGroup = Extended Base
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+COMPANYNAME = "Electronic Team, Inc."
+ClassName = "Electronic Shared Serial Ports"
+SerShareDevice.DeviceDesc = "Electronic Shared Serial Port"
+sershare.SVCDESC = "Electronic Shared Serial Ports Driver"
+DiskId1 = "Shared Serial Ports Bus Installation Disk #1"

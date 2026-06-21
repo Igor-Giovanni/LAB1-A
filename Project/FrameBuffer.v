@@ -1,0 +1,77 @@
+module FrameBuffer (
+    input wire clk,
+    input wire rst,
+
+    // ==========================================
+    // PORTA A: Lado da Escrita (Vem do UART)
+    // ==========================================
+    input wire uart_rx_valid,      // O UART avisa: "Recebi 1 byte inteiro do PC!"
+    input wire [7:0] uart_pixel,   // O byte (pixel) do UART
+    output reg frame_ready,        // Avisa o resto do sistema: "Temos uma foto de 1KB pronta"
+
+    // ==========================================
+    // PORTA B: Lado da Leitura (Vai para o Line Buffer)
+    // ==========================================
+    input wire cnn_read_en,        // A Máquina de Estados (FSM) pede: "Mande o próximo pixel"
+    output reg [7:0] cnn_pixel_out,// O fio que liga no 'pixel_in' do Line Buffer
+    output reg valid_out           // O fio que liga no 'valid_in' do Line Buffer
+);
+
+    // Criação da Memória RAM (1024 posições de 8 bits = 1 KB)
+    reg [7:0] ram_memory [0:1023];
+
+    // Contadores de endereço 
+    reg [9:0] write_addr; // Vai de 0 a 1023
+    reg [9:0] read_addr;  // Vai de 0 a 1023
+
+    // ==========================================
+    // LÓGICA DA PORTA A (Escrita Sequencial)
+    // ==========================================
+    always @(posedge clk) begin
+        if (rst) begin
+            write_addr <= 0;
+            frame_ready <= 1'b0;
+        end 
+        else if (uart_rx_valid) begin
+            // Guarda o pixel nO endereço atual
+            ram_memory[write_addr] <= uart_pixel;
+            
+            // Avança para a próximo endereço
+            if (write_addr == 1023) begin
+                write_addr <= 0;
+                frame_ready <= 1'b1; // Foto completa! Pode avisar a CNN.
+            end else begin
+                write_addr <= write_addr + 1;
+                frame_ready <= 1'b0; // Ainda montando a foto...
+            end
+        end
+    end
+
+    // ==========================================
+    // LÓGICA DA PORTA B (Leitura Sequencial)
+    // ==========================================
+    always @(posedge clk) begin
+        if (rst) begin
+            read_addr <= 0;
+            cnn_pixel_out <= 0;
+            valid_out <= 1'b0;
+        end 
+        else if (cnn_read_en && frame_ready) begin
+            // Pega o pixel do endereço atual e joga pro Line Buffer
+            cnn_pixel_out <= ram_memory[read_addr];
+            valid_out <= 1'b1; // Avisa o Line Buffer que o dado é real
+            
+            // Avança a endereço de leitura
+            if (read_addr == 1023) begin
+                read_addr <= 0; // Terminou de processar a imagem inteira
+            end else begin
+                read_addr <= read_addr + 1;
+            end
+        end 
+        else begin
+            // Se a CNN não tá pedindo dado, desliga o valid_out
+            valid_out <= 1'b0;
+        end
+    end
+
+endmodule

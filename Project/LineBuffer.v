@@ -1,0 +1,73 @@
+module LineBuffer (
+    input wire clk,             
+    input wire rst,             
+    input wire valid_in,        
+    input wire [7:0] pixel_in,  
+
+    output reg valid_out,       // A "LUZ VERDE" - sinal de que a mac pode comecar a calcular
+
+    output reg [7:0] p00, output reg [7:0] p01, output reg [7:0] p02,
+    output reg [7:0] p10, output reg [7:0] p11, output reg [7:0] p12,
+    output reg [7:0] p20, output reg [7:0] p21, output reg [7:0] p22
+);
+
+    reg [7:0] fifo_1 [0:31];
+    reg [7:0] fifo_2 [0:31];
+    
+    // Contadores de Coordenadas da Imagem 32x32
+    reg [4:0] x; // Vai de 0 a 31
+    reg [4:0] y; // Vai de 0 a 31
+    
+    // Fios combinacionais para calcular o próximo passo
+    wire [4:0] next_x = (x == 31) ? 5'd0 : x + 5'd1;
+    wire [4:0] next_y = (x == 31) ? y + 5'd1 : y;
+    
+    integer i;
+
+    always @(posedge clk) begin
+        if (rst) begin
+            x <= 0;
+            y <= 0;
+            valid_out <= 0;
+            p00 <= 0; p01 <= 0; p02 <= 0;
+            p10 <= 0; p11 <= 0; p12 <= 0;
+            p20 <= 0; p21 <= 0; p22 <= 0;
+        end 
+        else if (valid_in) begin
+            
+            // 1. Atualiza as coordenadas da varredura da câmera
+            x <= next_x;
+            y <= next_y;
+
+            // 2. greenlight (Garante que não tá pegando bordas quebradas)
+            if (next_x >= 2 && next_y >= 2) begin
+                valid_out <= 1'b1; // Sinal p MAC multiplicar
+            end else begin
+                valid_out <= 1'b0; // MAC parar de multiplicar (borda da imagem ou início)
+            end
+
+            // 3. O Deslocamento (A janela deslizando)
+            p00 <= p01; p01 <= p02;
+            p10 <= p11; p11 <= p12;
+            p20 <= p21; p21 <= p22;
+
+            // 4. Recebendo os dados
+            p22 <= pixel_in;       
+            p12 <= fifo_1[31];     
+            p02 <= fifo_2[31];     
+
+            // 5. Alimentando os Tubos - shift registers
+            for (i = 31; i > 0; i = i - 1) begin
+                fifo_1[i] <= fifo_1[i-1];
+                fifo_2[i] <= fifo_2[i-1];
+            end
+					fifo_1[0] <= pixel_in;   
+					fifo_2[0] <= fifo_1[31]; 
+            
+        end else begin
+            // Se a SRAM não mandou dado novo neste clock, desliga a luz verde
+            valid_out <= 1'b0; 
+        end
+    end
+
+endmodule

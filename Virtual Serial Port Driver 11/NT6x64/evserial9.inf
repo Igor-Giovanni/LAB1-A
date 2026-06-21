@@ -1,0 +1,86 @@
+;/*++
+;
+; (C) 2026 Electronic Team, Inc. All rights reserved.
+;
+;Module Name:
+;
+;    evserial9.inf
+;
+;Abstract:
+;
+;    INF file for installing VSPorts class with Virtual Serial Port device driver.
+;
+;--*/
+[Version]
+Signature="$WINDOWS NT$"
+Class=Ports
+ClassGuid={4d36e978-e325-11ce-bfc1-08002be10318}
+Provider=%Electronic%
+DriverVer=04/22/2026,10.6.960.0
+CatalogFile=evserial9.cat
+PnpLockdown=1
+
+[DestinationDirs]
+Drivers_Dir = 12
+CoInstaller_CopyFiles = 11 ; System Dir( system32 on NT )
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+evserial9.sys = 1,,
+evspd9.dll = 1,,
+
+;*********************************************
+; Virtual Serial Port Device  Install Section
+;*********************************************
+[Manufacturer]
+%Electronic%=Electronic, NTx86, NTia64, NTamd64, NTarm64, NTarm
+
+;x86
+[Electronic.NTx86]
+%EVSerialDevice.DeviceDesc%=EVSerial_Device, evserial9
+
+;AMD64
+[Electronic.NTamd64]
+%EVSerialDevice.DeviceDesc%=EVSerial_Device, evserial9
+
+;IA64
+[Electronic.NTia64]
+%EVSerialDevice.DeviceDesc%=EVSerial_Device, evserial9
+;NTarm64
+
+[Electronic.NTarm64]
+%EVSerialDevice.DeviceDesc%=EVSerial_Device, evserial9
+
+;NTarm
+[Electronic.NTarm]
+%EVSerialDevice.DeviceDesc%=EVSerial_Device, evserial9
+
+[EVSerial_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+evserial9.sys
+
+;-------------- Service installation
+[EVSerial_Device.NT.Services]
+AddService = evserial9, %SPSVCINST_ASSOCSERVICE%, evserial_Service_Inst
+
+; -------------- evserial Driver install sections
+[evserial_Service_Inst]
+DisplayName    = %evserial.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START 
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\evserial9.sys
+LoadOrderGroup = Extended Base
+CoInstallers32 = "evspd9.dll,EvspdCoInstaller"
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+Electronic = "Electronic Team"
+ClassName = "Virtual Serial Ports 9 (Electronic Team)"
+EVSerialDevice.DeviceDesc = "Virtual Serial Port 10 (Electronic Team)"
+evserial.SVCDESC = "Virtual Serial Ports Driver 10 (Electronic Team)"
+DiskId1 = "Virtual Serial Bus Installation Disk #1"

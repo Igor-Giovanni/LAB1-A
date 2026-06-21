@@ -1,0 +1,75 @@
+;/*++
+;
+;Copyright (c) 2000-2012 ELTIMA Software
+;
+;Module Name:
+;
+;    SerSw.inf
+;
+;Abstract:
+;    INF file for installing serial port switcher driver
+;
+;--*/
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider=%ELTIMA%
+DriverVer=04/23/2021,5.1.31.0
+CatalogFile=SerSw.cat
+
+[DestinationDirs]
+Drivers_Dir = 12
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+sersw.sys  = 1,,
+
+[Manufacturer]
+%ELTIMA%=Eltima, NTx86, NTia64, NTamd64
+
+
+[Eltima]
+%SerSw.DeviceDesc%=SerSw_Device, SerSw
+
+[Eltima.NTx86]
+%SerSw.DeviceDesc%=SerSw_Device, SerSw
+
+[Eltima.NTamd64]
+%SerSw.DeviceDesc%=SerSw_Device, SerSw
+
+[Eltima.NTia64]
+%SerSw.DeviceDesc%=SerSw_Device, SerSw
+
+;*****************************************
+; SerSw  Install Section
+;*****************************************
+
+[SerSw_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+sersw.sys
+
+;-------------- Service installation
+[SerSw_Device.NT.Services]
+AddService = SerSw,%SPSVCINST_ASSOCSERVICE%, SerSw_Service_Inst
+
+; -------------- SerSw driver install sections
+[SerSw_Service_Inst]
+DisplayName    = %SerSw.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START 
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\sersw.sys
+LoadOrderGroup = Extended Base
+
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ELTIMA = "ELTIMA Software"
+DiskId1 = "Serial Port Switcher Installation Disk #1"
+SerSw.DeviceDesc = "Serial Port Switcher"
+SerSw.SVCDESC = "Serial Port Switcher"

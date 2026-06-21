@@ -1,0 +1,87 @@
+;/*++
+;
+;Copyright (c) 2022 Electronic Team, Inc. All Rights Reserved
+;
+;Module Name:
+;
+;    spbus.inf
+;
+;Abstract:
+;    INF file for installing virtual serial bus enumerator driver
+;
+;--*/
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider=%COMPANYNAME%
+DriverVer=01/20/2022,10.0.191.0
+CatalogFile=spbus.cat
+
+[DestinationDirs]
+Drivers_Dir = 12
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+spbus.sys  = 1,,
+
+;*****************************************
+; spbus  Install Section
+;*****************************************
+
+[Manufacturer]
+%COMPANYNAME%=SerialShare, NTx86, NTia64, NTamd64, NTarm64
+
+;2000
+[SerialShare]
+%spbus.DeviceDesc%=spbus_Device, spbus
+
+;x86
+[SerialShare.NTx86]
+%spbus.DeviceDesc%=spbus_Device, spbus
+
+;AMD64
+[SerialShare.NTamd64]
+%spbus.DeviceDesc%=spbus_Device, spbus
+
+;IA64
+[SerialShare.NTia64]
+%spbus.DeviceDesc%=spbus_Device, spbus
+
+;NTarm64
+[SerialShare.NTarm64]
+%spbus.DeviceDesc%=spbus_Device, spbus
+
+;*****************************************
+; spbus  Install Section
+;*****************************************
+
+%spbus.DeviceDesc%=spbus_Device, spbus
+[spbus_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+spbus.sys
+
+;-------------- Service installation
+[spbus_Device.NT.Services]
+AddService = spbus,%SPSVCINST_ASSOCSERVICE%, spbus_Service_Inst
+
+; -------------- spbus driver install sections
+[spbus_Service_Inst]
+DisplayName    = %spbus.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START 
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\spbus.sys
+LoadOrderGroup = Extended Base
+
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+COMPANYNAME = "Electronic Team, Inc."
+DiskId1 = "Shared Serial Ports Bus Installation Disk #1"
+spbus.DeviceDesc = "Shared Serial Ports Bus Enumerator 10"
+spbus.SVCDESC = "Shared Serial Ports Bus Enumerator 10"
